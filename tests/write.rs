@@ -27,16 +27,18 @@ fn call_with_tmp_img<F: Fn(&str)>(f: F, filename: &str, test_seq: u32) {
     fs::remove_file(tmp_path).unwrap();
 }
 
-fn open_filesystem_rw(tmp_path: &str) -> FileSystem {
+fn open_filesystem_rw(tmp_path: &str, ignore_dirty_flag: bool) -> FileSystem {
     let file = fs::OpenOptions::new().read(true).write(true).open(tmp_path).unwrap();
     let buf_file = BufStream::new(file);
-    let options = FsOptions::new().update_accessed_date(true);
-    FileSystem::new(buf_file, options).unwrap()
+    let options = FsOptions::new()
+        .update_accessed_date(true)
+        .ignore_dirty_flag(ignore_dirty_flag);
+    FileSystem::new(buf_file, options)
 }
 
 fn call_with_fs<F: Fn(FileSystem)>(f: F, filename: &str, test_seq: u32) {
     let callback = |tmp_path: &str| {
-        let fs = open_filesystem_rw(tmp_path);
+        let fs = open_filesystem_rw(tmp_path, false).unwrap();
         f(fs);
     };
     call_with_tmp_img(callback, filename, test_seq);
@@ -338,7 +340,7 @@ fn test_rename_file_fat32() {
 
 fn test_dirty_flag(tmp_path: &str) {
     // Open filesystem, make change, and forget it - should become dirty
-    let fs = open_filesystem_rw(tmp_path);
+    let fs = open_filesystem_rw(tmp_path, false).unwrap();
     let status_flags = fs.read_status_flags().unwrap();
     assert!(!status_flags.dirty());
     assert!(!status_flags.io_error());
@@ -351,9 +353,13 @@ fn test_dirty_flag(tmp_path: &str) {
     assert!(!status_flags.io_error());
     fs.unmount().unwrap();
     // Make sure remounting does not clear the dirty flag
-    let fs = open_filesystem_rw(tmp_path);
+    // Check if volume is dirty now
+    let fs = open_filesystem_rw(tmp_path, false);
+    assert!(matches!(fs, Err(Error::DirtyFileSystem)));
+    // Make sure clearing the dirty flag allows mounting to succeed
+    let fs = open_filesystem_rw(tmp_path, true).unwrap();
     let status_flags = fs.read_status_flags().unwrap();
-    assert!(status_flags.dirty());
+    assert!(!status_flags.dirty());
     assert!(!status_flags.io_error());
 }
 
