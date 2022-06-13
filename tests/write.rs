@@ -353,7 +353,6 @@ fn test_dirty_flag(tmp_path: &str) {
     assert!(!status_flags.io_error());
     fs.unmount().unwrap();
     // Make sure remounting does not clear the dirty flag
-    // Check if volume is dirty now
     let fs = open_filesystem_rw(tmp_path, false);
     assert!(matches!(fs, Err(Error::DirtyFileSystem)));
     // Make sure clearing the dirty flag allows mounting to succeed
