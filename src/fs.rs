@@ -597,11 +597,11 @@ impl<IO: Read + Write + Seek, TP, OCC> FileSystem<IO, TP, OCC> {
     /// # Errors
     ///
     /// `Error::Io` will be returned if the underlying storage object returned an I/O error.
-    pub fn unmount(self) -> Result<(), Error<IO::Error>> {
-        self.unmount_internal()
+    pub fn unmount(mut self) -> Result<(), Error<IO::Error>> {
+        self.flush()
     }
 
-    fn unmount_internal(&self) -> Result<(), Error<IO::Error>> {
+    pub fn flush(&mut self) -> Result<(), Error<IO::Error>> {
         self.flush_fs_info()?;
         self.set_dirty_flag(false)?;
         Ok(())
@@ -705,7 +705,7 @@ impl<IO: ReadWriteSeek, TP: TimeProvider, OCC: OemCpConverter> FileSystem<IO, TP
 /// `Drop` implementation tries to unmount the filesystem when dropping.
 impl<IO: ReadWriteSeek, TP, OCC> Drop for FileSystem<IO, TP, OCC> {
     fn drop(&mut self) {
-        if let Err(err) = self.unmount_internal() {
+        if let Err(err) = self.flush() {
             error!("unmount failed {:?}", err);
         }
     }
