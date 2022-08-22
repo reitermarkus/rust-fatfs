@@ -2,7 +2,7 @@
 use alloc::string::String;
 use core::borrow::BorrowMut;
 use core::cell::{Cell, RefCell};
-use core::char;
+use core::{char, mem, ptr};
 use core::cmp;
 use core::convert::TryFrom;
 use core::fmt::Debug;
@@ -597,8 +597,13 @@ impl<IO: Read + Write + Seek, TP, OCC> FileSystem<IO, TP, OCC> {
     /// # Errors
     ///
     /// `Error::Io` will be returned if the underlying storage object returned an I/O error.
-    pub fn unmount(mut self) -> Result<(), Error<IO::Error>> {
-        self.flush()
+    pub fn unmount(mut self) -> Result<IO, Error<IO::Error>> {
+        self.flush()?;
+
+        let mut disk = unsafe { ptr::read(self.disk.get_mut()) };
+        mem::forget(self);
+        disk.seek(SeekFrom::Start(0))?;
+        Ok(disk)
     }
 
     pub fn flush(&mut self) -> Result<(), Error<IO::Error>> {
